@@ -93,9 +93,14 @@ class UploadAnalyzer
     public function enrollmentProjection(Collection $rows): array
     {
         $data = $rows->map(function ($row) {
+            // Buscar variantes de 'anio' (ano, anio, año, etc.)
+            $anioKey = $this->findColumnKey($row, ['anio', 'ano', 'año', 'year', 'a_o']);
+            // Buscar variantes de 'matriculados'
+            $matriculadosKey = $this->findColumnKey($row, ['matriculados', 'matriculado', 'matricula', 'enrolled', 'total']);
+            
             return [
-                'anio' => isset($row['anio']) ? (int) $row['anio'] : null,
-                'matriculados' => isset($row['matriculados']) ? (int) $row['matriculados'] : null,
+                'anio' => $anioKey && isset($row[$anioKey]) ? (int) $row[$anioKey] : null,
+                'matriculados' => $matriculadosKey && isset($row[$matriculadosKey]) ? (int) $row[$matriculadosKey] : null,
             ];
         })->filter(fn ($row) => $row['anio'] && $row['matriculados'])
             ->sortBy('anio')
@@ -187,6 +192,38 @@ class UploadAnalyzer
         $sumX = array_sum($x);
 
         return ($sumY - $slope * $sumX) / $n;
+    }
+
+    private function findColumnKey(array $row, array $possibleKeys): ?string
+    {
+        // Primero buscar coincidencia exacta
+        foreach ($possibleKeys as $key) {
+            if (isset($row[$key])) {
+                return $key;
+            }
+        }
+        
+        // Buscar coincidencia parcial (ignorando mayúsculas/minúsculas y caracteres especiales)
+        $rowKeys = array_keys($row);
+        foreach ($possibleKeys as $searchKey) {
+            $normalizedSearch = $this->normalizeKey($searchKey);
+            foreach ($rowKeys as $rowKey) {
+                $normalizedRow = $this->normalizeKey($rowKey);
+                if ($normalizedSearch === $normalizedRow) {
+                    return $rowKey;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    private function normalizeKey(string $key): string
+    {
+        $key = strtolower($key);
+        $key = str_replace([' ', '-', '.', '_', 'ñ', 'á', 'é', 'í', 'ó', 'ú'], ['', '', '', '', 'n', 'a', 'e', 'i', 'o', 'u'], $key);
+        $key = preg_replace('/[^a-z0-9]/', '', $key);
+        return $key;
     }
 }
 

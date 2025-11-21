@@ -236,4 +236,41 @@
             </div>
         </div>
     @endif
+
+    @if($showDeleteModal)
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" wire:click="cancelDelete">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" wire:click.stop>
+                <div class="p-6">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800">¿Eliminar usuario?</h3>
+                            <p class="text-slate-600 text-sm">Esta acción no se puede deshacer.</p>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-4 mb-6">
+                        <p class="text-sm text-slate-600">
+                            <span class="font-semibold">Usuario:</span> {{ $userToDeleteName }}
+                        </p>
+                    </div>
+                    <div class="flex justify-end gap-3">
+                        <button
+                            wire:click="cancelDelete"
+                            class="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            wire:click="deleteUser"
+                            class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition"
+                        >
+                            <i class="fas fa-trash mr-2"></i> Sí, eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>

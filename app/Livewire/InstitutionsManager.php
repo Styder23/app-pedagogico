@@ -17,6 +17,10 @@ class InstitutionsManager extends Component
     public $showModal = false;
     public $modalTitle = 'Nueva institución';
     public $editingId = null;
+    
+    public $showDeleteModal = false;
+    public $institutionToDeleteId = null;
+    public $institutionToDeleteName = '';
 
     public $nombre = '';
     public $codigo_ugel = '';
@@ -60,21 +64,37 @@ class InstitutionsManager extends Component
         $this->resetForm();
     }
 
-    #[On('delete-institution-confirmed')]
-    public function delete(int $institutionId): void
-    {
-        Institucion::findOrFail($institutionId)->delete();
-        $this->dispatch('swal', icon: 'success', title: 'Institución eliminada');
-        $this->resetPage();
-    }
-
     public function confirmDeletion(int $id): void
     {
-        $this->dispatch('confirm-delete', [
-            'id' => $id,
-            'label' => 'institución',
-            'event' => 'delete-institution-confirmed',
-        ]);
+        $institucion = Institucion::findOrFail($id);
+        $this->institutionToDeleteId = $id;
+        $this->institutionToDeleteName = $institucion->nombre;
+        $this->showDeleteModal = true;
+    }
+    
+    public function cancelDelete(): void
+    {
+        $this->showDeleteModal = false;
+        $this->institutionToDeleteId = null;
+        $this->institutionToDeleteName = '';
+    }
+    
+    public function delete(): void
+    {
+        if (!$this->institutionToDeleteId) {
+            return;
+        }
+        
+        try {
+            Institucion::findOrFail($this->institutionToDeleteId)->delete();
+            $this->showDeleteModal = false;
+            $this->institutionToDeleteId = null;
+            $this->institutionToDeleteName = '';
+            $this->dispatch('swal', icon: 'success', title: 'Institución eliminada');
+            $this->resetPage();
+        } catch (\Exception $e) {
+            $this->dispatch('swal', icon: 'error', title: 'Error al eliminar institución', text: $e->getMessage());
+        }
     }
 
     public function resetForm(): void

@@ -44,8 +44,13 @@ public function mount(): void
     $user = auth()->user();
     abort_unless($user, 401);
     
-    // Determinar roles y permisos
-    $this->isAdmin = $user->rol_id === 1;
+    // Cargar relación role si no está cargada
+    if (!$user->relationLoaded('role')) {
+        $user->load('role');
+    }
+    
+    // Determinar roles y permisos: rol_id = 1 es administrador
+    $this->isAdmin = $user->role_id == 1 || $user->isAdmin();
     
     // Para roles que tienen institución asignada (2, 3, 6)
     if (in_array($user->rol_id, [2, 3, 6])) {

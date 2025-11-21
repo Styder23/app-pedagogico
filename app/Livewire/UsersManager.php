@@ -25,6 +25,10 @@ class UsersManager extends Component
     public $modalTitle = 'Nuevo Usuario';
     public $editingUserId = null;
     public $personaId = null;
+    
+    public $showDeleteModal = false;
+    public $userToDeleteId = null;
+    public $userToDeleteName = '';
 
     public $tipo = 'docente';
     public $nombres = '';
@@ -47,7 +51,14 @@ class UsersManager extends Component
     {
         $user = auth()->user();
         abort_unless($user && $user->canManageUsers(), 403);
-        $this->isAdmin = $user->isAdmin();
+        
+        // Cargar la relación role si no está cargada
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+        
+        // Verificar si es admin: rol_id = 1 o por nombre del rol
+        $this->isAdmin = $user->role_id == 1 || $user->isAdmin();
         $this->currentInstitutionId = $user->institucion_id;
         if (!$this->isAdmin && !$this->currentInstitutionId) {
             abort(403, 'Tu usuario necesita una institución asignada.');
@@ -132,9 +143,30 @@ class UsersManager extends Component
 
     public function save(): void
     {
+        // Verificar que el usuario actual sigue autenticado y tiene permisos
+        $currentUser = auth()->user();
+        if (!$currentUser || !$currentUser->canManageUsers()) {
+            abort(403, 'No tienes permisos para realizar esta acción.');
+        }
+        
+        // Recargar el estado de admin por si cambió
+        if (!$currentUser->relationLoaded('role')) {
+            $currentUser->load('role');
+        }
+        $isAdmin = $currentUser->role_id == 1 || $currentUser->isAdmin();
+        
+        // Verificar autorización antes de guardar
+        if ($this->editingUserId) {
+            $userToEdit = User::findOrFail($this->editingUserId);
+            // Si no es admin, solo puede editar usuarios de su institución
+            if (!$isAdmin && $userToEdit->institucion_id !== $currentUser->institucion_id) {
+                abort(403, 'No tienes permisos para editar este usuario.');
+            }
+        }
+
         $this->validate($this->rules());
 
-        $institucionId = $this->isAdmin ? $this->institucion_id : $this->currentInstitutionId;
+        $institucionId = $isAdmin ? $this->institucion_id : $currentUser->institucion_id;
 
         $personaData = [
             'tipo' => $this->tipo,
@@ -174,32 +206,44 @@ class UsersManager extends Component
         $this->resetForm();
     }
 
-    #[On('delete-user-confirmed')]
-    public function deleteUser($payload): void
+    public function deleteUser(): void
     {
-        $userId = is_array($payload) ? ($payload['id'] ?? null) : $payload;
-        if (!$userId) {
+        if (!$this->userToDeleteId) {
             return;
         }
-        $user = $this->loadUser($userId);
-        $persona = $user->persona;
-        $user->delete();
+        
+        try {
+            $user = $this->loadUser($this->userToDeleteId);
+            $persona = $user->persona;
+            $user->delete();
 
-        if ($persona) {
-            $persona->delete();
+            if ($persona) {
+                $persona->delete();
+            }
+
+            $this->showDeleteModal = false;
+            $this->userToDeleteId = null;
+            $this->userToDeleteName = '';
+            $this->dispatch('swal', icon: 'success', title: 'Usuario eliminado');
+            $this->resetPage();
+        } catch (\Exception $e) {
+            $this->dispatch('swal', icon: 'error', title: 'Error al eliminar usuario', text: $e->getMessage());
         }
-
-        $this->dispatch('swal', icon: 'success', title: 'Usuario eliminado');
-        $this->resetPage();
     }
 
     public function confirmUserDeletion(int $userId): void
     {
-        $this->dispatch('confirm-delete', [
-            'id' => $userId,
-            'label' => 'usuario',
-            'event' => 'delete-user-confirmed',
-        ]);
+        $user = User::with('persona')->findOrFail($userId);
+        $this->userToDeleteId = $userId;
+        $this->userToDeleteName = optional($user->persona)->nombres . ' ' . optional($user->persona)->apellidos;
+        $this->showDeleteModal = true;
+    }
+    
+    public function cancelDelete(): void
+    {
+        $this->showDeleteModal = false;
+        $this->userToDeleteId = null;
+        $this->userToDeleteName = '';
     }
 
     protected function rules(): array
@@ -322,11 +366,26 @@ class UsersManager extends Component
     protected function loadUser(int $userId): User
     {
         $user = User::with(['persona', 'institucion'])->findOrFail($userId);
-        if ($this->isAdmin) {
+        
+        // Verificar autorización actual
+        $currentUser = auth()->user();
+        if (!$currentUser || !$currentUser->canManageUsers()) {
+            abort(403, 'No tienes permisos para acceder a este usuario.');
+        }
+        
+        // Cargar relación role si no está cargada
+        if (!$currentUser->relationLoaded('role')) {
+            $currentUser->load('role');
+        }
+        
+        $isAdmin = $currentUser->role_id == 1 || $currentUser->isAdmin();
+        
+        if ($isAdmin) {
             return $user;
         }
-        if ($user->institucion_id !== $this->currentInstitutionId) {
-            abort(403);
+        
+        if ($user->institucion_id !== $currentUser->institucion_id) {
+            abort(403, 'No tienes permisos para acceder a este usuario.');
         }
         return $user;
     }

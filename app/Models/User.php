@@ -68,12 +68,22 @@ class User extends Authenticatable
 
     public function roleKey(): string
     {
+        // Si la relación no está cargada, intentar cargarla
+        if (!$this->relationLoaded('role') && $this->role_id) {
+            $this->load('role');
+        }
+        
         $value = $this->role->slug ?? $this->role->name ?? '';
         return Str::slug(Str::lower($value));
     }
 
     public function isAdmin(): bool
     {
+        // Verificar por role_id = 1 (administrador)
+        if ($this->role_id == 1) {
+            return true;
+        }
+        // También verificar por nombre del rol por compatibilidad
         return in_array($this->roleKey(), ['admin', 'ugel', 'administrator', 'administrador']);
     }
 

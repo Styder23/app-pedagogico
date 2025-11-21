@@ -17,7 +17,6 @@ class DataUploadManager extends Component
 
     protected $listeners = [
         'upload-completed' => '$refresh',
-        'delete-upload' => 'deleteUpload',
     ];
 
     public string $tipo = 'inscripciones';
@@ -47,6 +46,10 @@ class DataUploadManager extends Component
         'seccion' => '',
         'evaluacion_tipo' => '',
     ];
+    
+    public bool $showDeleteModal = false;
+    public ?int $uploadToDeleteId = null;
+    public string $uploadToDeleteLabel = '';
 
     protected bool $isAdmin = false;
     protected ?int $lockedInstitutionId = null;
@@ -183,32 +186,43 @@ class DataUploadManager extends Component
     public function confirmDelete(int $uploadId): void
     {
         $upload = $this->loadUpload($uploadId);
-        $this->dispatch('confirm-delete', [
-            'id' => $uploadId,
-            'label' => "archivo de {$upload->tipo}",
-            'event' => 'delete-upload',
-        ]);
+        $this->uploadToDeleteId = $uploadId;
+        $this->uploadToDeleteLabel = "archivo de {$upload->tipo}";
+        $this->showDeleteModal = true;
+    }
+    
+    public function cancelDelete(): void
+    {
+        $this->showDeleteModal = false;
+        $this->uploadToDeleteId = null;
+        $this->uploadToDeleteLabel = '';
     }
 
-    public function deleteUpload($payload): void
+    public function deleteUpload(): void
     {
-        $uploadId = is_array($payload) ? ($payload['id'] ?? null) : $payload;
-        if (!$uploadId) {
+        if (!$this->uploadToDeleteId) {
             return;
         }
 
-        $upload = $this->loadUpload($uploadId, false);
+        $upload = $this->loadUpload($this->uploadToDeleteId, false);
         if (!$upload) {
             return;
         }
 
-        if ($upload->archivo) {
-            Storage::disk('public')->delete($upload->archivo);
-        }
+        try {
+            if ($upload->archivo) {
+                Storage::disk('public')->delete($upload->archivo);
+            }
 
-        $upload->delete();
-        $this->dispatch('swal', icon: 'success', title: 'Archivo eliminado');
-        $this->resetPage();
+            $upload->delete();
+            $this->showDeleteModal = false;
+            $this->uploadToDeleteId = null;
+            $this->uploadToDeleteLabel = '';
+            $this->dispatch('swal', icon: 'success', title: 'Archivo eliminado');
+            $this->resetPage();
+        } catch (\Exception $e) {
+            $this->dispatch('swal', icon: 'error', title: 'Error al eliminar archivo', text: $e->getMessage());
+        }
     }
 
     public function render()

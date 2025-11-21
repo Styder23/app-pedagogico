@@ -24,23 +24,6 @@
                     showConfirmButton: false,
                 });
             });
-
-            Livewire.on('confirm-delete', ({ id, label = 'registro', event }) => {
-                Swal.fire({
-                    title: `¿Eliminar ${label}?`,
-                    text: 'Esta acción no se puede deshacer.',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#2563eb',
-                    cancelButtonColor: '#94a3b8',
-                    confirmButtonText: 'Sí, eliminar',
-                    cancelButtonText: 'Cancelar',
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        Livewire.dispatch(event, { id });
-                    }
-                });
-            });
         });
     </script>
     @stack('scripts')
